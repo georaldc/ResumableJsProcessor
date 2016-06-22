@@ -54,6 +54,11 @@ class ResumableJsProcessor
         return $mode;
     }
 
+    /**
+     * Extracts parameters sent by resumable.js
+     * 
+     * @return array
+     */
     public function getResumableParameters()
     {
         $mode = $this->getMode();
@@ -99,6 +104,12 @@ class ResumableJsProcessor
         return $parameters;
     }
 
+    /**
+     * Handles processing of resumable.js requests.
+     *
+     * @param bool $testMode Whether to enable test mode in UploadedFile (bypasses PHP upload checks)
+     * @return bool|string Returns either false or the upload path + filename of uploaded file
+     */
     public function process($testMode = false)
     {
         $mode = $this->getMode();
@@ -136,6 +147,11 @@ class ResumableJsProcessor
         return false;
     }
 
+    /**
+     * Check if all needed chunks exist inside the chunk path directory
+     *
+     * @return bool
+     */
     protected function validateChunks()
     {
         $parameters = $this->getResumableParameters();
@@ -151,6 +167,12 @@ class ResumableJsProcessor
         return $totalChunkedSize >= $parameters['resumableTotalSize'];
     }
 
+    /**
+     * Assembles chunks that have been uploaded. Based on Chris Gregory's code found inside the samples folder of
+     * resumable.js (https://github.com/23/resumable.js/blob/master/samples/Backend%20on%20PHP.md)
+     *
+     * @return bool|string Returns either false on failure or the upload path + filename of uploaded file
+     */
     protected function createFileFromChunks()
     {
         $parameters = $this->getResumableParameters();
@@ -179,6 +201,11 @@ class ResumableJsProcessor
         return $this->getUploadPath() . DIRECTORY_SEPARATOR . $parameters['resumableFilename'];
     }
 
+    /**
+     * Helper function to recursively delete directories
+     *
+     * @param string $dir Directory to delete
+     */
     protected function recursiveDeleteChunkDirectory($dir)
     {
         if (is_dir($dir)) {

@@ -2,10 +2,9 @@
 
 namespace ResumableJsProcessor;
 
-use RecursiveIteratorIterator;
-use RecursiveDirectoryIterator;
-use FilesystemIterator;
+use SplFileInfo;
 use SebastianBergmann\GlobalState\RuntimeException;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 class ResumableJsProcessor
@@ -13,11 +12,13 @@ class ResumableJsProcessor
     const MODE_TEST_CHUNK = 1;
     const MODE_UPLOAD_CHUNK = 2;
 
+    protected $fs;
     protected $uploadPath;
     protected $chunkPath;
 
     public function __construct($uploadPath)
     {
+        $this->fs = new Filesystem();
         $this->setUploadPath($uploadPath);
     }
 
@@ -130,13 +131,7 @@ class ResumableJsProcessor
                     continue;
                 }
                 // create our chunk directory
-                if (!is_dir($chunkPath)) {
-                    if (true !== @mkdir($chunkPath, 0777, true)) {
-                        if (!is_dir($chunkPath)) {
-                            throw new \RuntimeException('An error has occurred trying to create the chunk directory ' . $chunkPath);
-                        }
-                    }
-                }
+                $this->fs->mkdir($chunkPath, 0755);
                 // move the uploaded file
                 $uploadedFile->move($chunkPath, $parameters['resumableFilename'] . '.part' . $parameters['resumableChunkNumber']);
             }
@@ -161,8 +156,12 @@ class ResumableJsProcessor
             return false;
         }
         $totalChunkedSize = 0;
-        foreach(new RecursiveIteratorIterator(new RecursiveDirectoryIterator(realpath($chunkPath), FilesystemIterator::SKIP_DOTS)) as $file){
-            $totalChunkedSize += $file->getSize();
+        for ($i = 1; $i <= $parameters['resumableTotalChunks']; $i++) {
+            $chunkFile = $chunkPath . DIRECTORY_SEPARATOR . $parameters['resumableFilename'] . '.part' . $i;
+            $file = new SplFileInfo($chunkFile);
+            if ($file->isFile()) {
+                $totalChunkedSize += $file->getSize();
+            }
         }
         return $totalChunkedSize >= $parameters['resumableTotalSize'];
     }
@@ -190,33 +189,7 @@ class ResumableJsProcessor
         } else {
             return false;
         }
-        if (is_dir($chunkPath . '_UNUSED')) {
-            $this->recursiveDeleteChunkDirectory($chunkPath . '_UNUSED');
-        }
-        if (rename($chunkPath, $chunkPath . '_UNUSED')) {
-            $this->recursiveDeleteChunkDirectory($chunkPath . '_UNUSED');
-        } else {
-            $this->recursiveDeleteChunkDirectory($chunkPath);
-        }
+        $this->fs->remove($chunkPath);
         return $this->getUploadPath() . DIRECTORY_SEPARATOR . $parameters['resumableFilename'];
-    }
-
-    /**
-     * Helper function to recursively delete directories
-     *
-     * @param string $dir Directory to delete
-     */
-    protected function recursiveDeleteChunkDirectory($dir)
-    {
-        if (is_dir($dir)) {
-            foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator(realpath($dir), FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::SELF_FIRST, RecursiveIteratorIterator::CATCH_GET_CHILD) as $object) {
-                if ($object->isDir()) {
-                    $this->recursiveDeleteChunkDirectory($object->getPathName());
-                } else {
-                    unlink($object->getPathName());
-                }
-            }
-            rmdir($dir);
-        }
     }
 }

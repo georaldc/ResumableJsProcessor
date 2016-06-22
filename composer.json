@@ -2,7 +2,6 @@
   "name": "georaldc/resumable-js-processor",
   "description": "Easily handle uploads coming from Resumable.js",
   "license": "MIT",
-  "minimum-stability": "dev",
   "prefer-stable": true,
   "authors": [
     {

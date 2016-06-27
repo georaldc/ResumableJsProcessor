@@ -25,6 +25,9 @@ class ResumableJsProcessor
     public function setUploadPath($uploadPath)
     {
         $this->uploadPath = $uploadPath;
+        if (false === is_dir($this->uploadPath)) {
+            $this->fs->mkdir($this->uploadPath, 0755);
+        }
     }
 
     public function getUploadPath()
@@ -35,6 +38,9 @@ class ResumableJsProcessor
     public function setChunkPath($chunkPath)
     {
         $this->chunkPath = $chunkPath;
+        if (false === is_dir($this->chunkPath)) {
+            $this->fs->mkdir($this->chunkPath, 0755);
+        }
     }
 
     public function getChunkPath()

@@ -2,26 +2,30 @@
 
 namespace ResumableJsProcessor\Tests;
 
+use org\bovigo\vfs\vfsStream;
 use ResumableJsProcessor\ResumableJsProcessor;
 
 class ResumableJsProcessorTest extends \PHPUnit_Framework_TestCase
 {
     protected $resumable;
+    protected $root;
 
     protected function setUp()
     {
-        $this->resumable = new ResumableJsProcessor('tests/uploads');
+        $this->root = vfsStream::setup('tests');
+        $this->resumable = new ResumableJsProcessor(vfsStream::url('tests/uploads'));
     }
 
     public function testGetUploadPath()
     {
-        $this->assertEquals('tests/uploads', $this->resumable->getUploadPath());
+        $this->assertEquals('vfs://tests/uploads', $this->resumable->getUploadPath());
     }
 
     public function testSetNewUploadPath()
     {
-        $this->resumable->setUploadPath('new/path/to/uploads');
-        $this->assertEquals('new/path/to/uploads', $this->resumable->getUploadPath());
+        $this->resumable->setUploadPath(vfsStream::url('tests/new-uploads-path'));
+        $this->assertEquals('vfs://tests/new-uploads-path', $this->resumable->getUploadPath());
+        $this->assertTrue(is_dir($this->resumable->getUploadPath()));
     }
 
     public function testGetChunkPath()
@@ -31,8 +35,9 @@ class ResumableJsProcessorTest extends \PHPUnit_Framework_TestCase
 
     public function testSetNewChunkPath()
     {
-        $this->resumable->setChunkPath('new/path/to/chunk/files');
-        $this->assertEquals('new/path/to/chunk/files', $this->resumable->getChunkPath());
+        $this->resumable->setChunkPath(vfsStream::url('tests/new-chunks-path'));
+        $this->assertEquals('vfs://tests/new-chunks-path', $this->resumable->getChunkPath());
+        $this->assertTrue(is_dir($this->resumable->getUploadPath()));
     }
 
     public function testGetResumableMode()
@@ -65,12 +70,9 @@ class ResumableJsProcessorTest extends \PHPUnit_Framework_TestCase
     public function testProcessUpload()
     {
         $this->generateUploads();
-        $this->resumable->setChunkPath('tests/chunks');
+        $this->resumable->setChunkPath(vfsStream::url('tests/chunks'));
         $fileCounter = 1;
         $fileUploaded = null;
-        if (!is_dir($this->resumable->getUploadPath())) {
-            mkdir($this->resumable->getUploadPath(), 777);
-        }
         while ($fileCounter <= 6) {
             $_POST = [
                 'resumableChunkNumber' => $fileCounter,
@@ -83,7 +85,7 @@ class ResumableJsProcessorTest extends \PHPUnit_Framework_TestCase
                 'file' => [
                     'name' => 'blob',
                     'type' => 'application/octet-stream',
-                    'tmp_name' => 'tests/temp/test' . $fileCounter,
+                    'tmp_name' => vfsStream::url('tests/temp') . '/test' . $fileCounter,
                     'error' => 0,
                     'size' => 6,
                 ],
@@ -93,8 +95,8 @@ class ResumableJsProcessorTest extends \PHPUnit_Framework_TestCase
             }
             $fileCounter++;
         }
-        $this->assertEquals('tests/uploads' . DIRECTORY_SEPARATOR . $_POST['resumableFilename'], $fileUploaded);
-        $this->assertFileExists('tests/uploads' . DIRECTORY_SEPARATOR . $_POST['resumableFilename']);
+        $this->assertEquals('vfs://tests/uploads' . DIRECTORY_SEPARATOR . $_POST['resumableFilename'], $fileUploaded);
+        $this->assertFileExists('vfs://tests/uploads' . DIRECTORY_SEPARATOR . $_POST['resumableFilename']);
     }
 
     /**
@@ -102,17 +104,12 @@ class ResumableJsProcessorTest extends \PHPUnit_Framework_TestCase
      */
     private function generateUploads()
     {
-        $tempDirectory = 'tests/temp';
         $i = 0;
         $string = 'foobar';
-        if (!is_dir($tempDirectory)) {
-            mkdir($tempDirectory, 777);
-        }
+        $temp = vfsStream::newDirectory('temp')->at($this->root);
         while ($i < strlen($string)) {
-            if (($fp = fopen($tempDirectory . DIRECTORY_SEPARATOR . 'test' . ($i + 1), 'w')) !== false) {
-                fwrite($fp, $string[$i]);
-                $i++;
-            }
+            vfsStream::newFile('test' . ($i + 1))->at($temp)->setContent($string[$i]);
+            $i++;
         }
     }
 }

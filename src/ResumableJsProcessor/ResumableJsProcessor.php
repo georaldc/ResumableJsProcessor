@@ -9,12 +9,17 @@ use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 class ResumableJsProcessor
 {
+    /** Used for checking current chunk's status. */
     const MODE_TEST_CHUNK = 1;
+
+    /** Used for uploading current chunk. */
     const MODE_UPLOAD_CHUNK = 2;
 
     protected $fs;
     protected $uploadPath;
     protected $chunkPath;
+    protected $resumableParametersContainer;
+    protected $mode;
 
     public function __construct($uploadPath)
     {
@@ -51,64 +56,37 @@ class ResumableJsProcessor
             return $this->chunkPath;
         }
     }
+    
+    public function setMode($mode)
+    {
+        if (self::MODE_UPLOAD_CHUNK === $mode || self::MODE_TEST_CHUNK === $mode) {
+            $this->mode = $mode;
+        } else {
+            $this->mode = self::MODE_TEST_CHUNK;
+        }
+    }
 
     public function getMode()
     {
-        $mode = self::MODE_TEST_CHUNK;
-        if (!empty($_FILES)) {
-            $mode = self::MODE_UPLOAD_CHUNK;
-        }
-        return $mode;
+        return $this->mode;
+    }
+
+    public function setResumableParametersContainer(ResumableParametersContainerAbstract $resumableParametersContainer)
+    {
+        $this->resumableParametersContainer = $resumableParametersContainer;
     }
 
     /**
-     * Extracts parameters sent by resumable.js
+     * Extracts parameters found inside $this->resumableParametersContainer
      * 
      * @return array
      */
     public function getResumableParameters()
     {
-        $mode = $this->getMode();
-        $parameters = [
-            'resumableIdentifier' => '',
-            'resumableFilename' => '',
-            'resumableChunkNumber' => '',
-            'resumableTotalSize' => 0,
-        ];
-        if (self::MODE_TEST_CHUNK === $mode) {
-            if (isset($_GET['resumableIdentifier']) && trim($_GET['resumableIdentifier']) != '') {
-                $parameters['resumableIdentifier'] = trim($_GET['resumableIdentifier']);
-            }
-            if (isset($_GET['resumableFilename']) && trim($_GET['resumableFilename']) != '') {
-                $parameters['resumableFilename'] = trim($_GET['resumableFilename']);
-            }
-            if (isset($_GET['resumableChunkNumber']) && trim($_GET['resumableChunkNumber']) != '') {
-                $parameters['resumableChunkNumber'] = (int) $_GET['resumableChunkNumber'];
-            }
-            if (isset($_GET['resumableTotalSize']) && trim($_GET['resumableTotalSize']) != '') {
-                $parameters['resumableTotalSize'] = (int) $_GET['resumableTotalSize'];
-            }
-            if (isset($_GET['resumableTotalChunks']) && trim($_GET['resumableTotalChunks']) != '') {
-                $parameters['resumableTotalChunks'] = (int) $_GET['resumableTotalChunks'];
-            }
-        } elseif (self::MODE_UPLOAD_CHUNK === $mode) {
-            if (isset($_POST['resumableIdentifier']) && trim($_POST['resumableIdentifier']) != '') {
-                $parameters['resumableIdentifier'] = trim($_POST['resumableIdentifier']);
-            }
-            if (isset($_POST['resumableFilename']) && trim($_POST['resumableFilename']) != '') {
-                $parameters['resumableFilename'] = trim($_POST['resumableFilename']);
-            }
-            if (isset($_POST['resumableChunkNumber']) && trim($_POST['resumableChunkNumber']) != '') {
-                $parameters['resumableChunkNumber'] = (int) $_POST['resumableChunkNumber'];
-            }
-            if (isset($_POST['resumableTotalSize']) && trim($_POST['resumableTotalSize']) != '') {
-                $parameters['resumableTotalSize'] = (int) $_POST['resumableTotalSize'];
-            }
-            if (isset($_POST['resumableTotalChunks']) && trim($_POST['resumableTotalChunks']) != '') {
-                $parameters['resumableTotalChunks'] = (int) $_POST['resumableTotalChunks'];
-            }
+        if (null === $this->resumableParametersContainer) {
+            $this->resumableParametersContainer = new ResumableParametersContainer($this->mode);
         }
-        return $parameters;
+        return $this->resumableParametersContainer->getParameters();
     }
 
     /**

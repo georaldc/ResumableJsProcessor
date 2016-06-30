@@ -28,7 +28,7 @@ class ResumableJsProcessorTest extends \PHPUnit_Framework_TestCase
         $this->assertTrue(is_dir($this->resumable->getUploadPath()));
     }
 
-    public function testGetChunkPath()
+    public function testGetDefaultChunkPath()
     {
         $this->assertEquals(sys_get_temp_dir(), $this->resumable->getChunkPath());
     }
@@ -42,38 +42,43 @@ class ResumableJsProcessorTest extends \PHPUnit_Framework_TestCase
 
     public function testGetResumableMode()
     {
-        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $this->resumable->setMode(ResumableJsProcessor::MODE_TEST_CHUNK);
         $this->assertEquals(ResumableJsProcessor::MODE_TEST_CHUNK, $this->resumable->getMode());
-        $_SERVER['REQUEST_METHOD'] = 'POST';
-        $_FILES = [
-            'file' => [
-                'name' => 'blob',
-                'type' => 'application/octet-stream',
-                'tmp_name' => '/tmp/phpFile',
-                'error' => 0,
-                'size' => 1024,
-            ],
-        ];
+        $this->resumable->setMode(ResumableJsProcessor::MODE_UPLOAD_CHUNK);
         $this->assertEquals(ResumableJsProcessor::MODE_UPLOAD_CHUNK, $this->resumable->getMode());
     }
 
-    public function testGetResumableParameters()
+    public function testSetResumableParametersContainer()
     {
+        $resumableParametersContainer = $this->getMockBuilder('ResumableJsProcessor\ResumableParametersContainer')
+            ->setConstructorArgs([ResumableJsProcessor::MODE_TEST_CHUNK])
+            ->getMock();
+        $resumableParametersContainer
+            ->method('getParameters')
+            ->willReturn([
+                'resumableIdentifier' => 'foobar',
+                'resumableFilename' => 'testfile.foobar',
+                'resumableChunkNumber' => '1',
+                'resumableTotalSize' => 100,
+                'resumableTotalChunks' => 40,
+            ]);
+        $this->resumable->setResumableParametersContainer($resumableParametersContainer);
         $this->assertEquals([
-            'resumableIdentifier' => '',
-            'resumableFilename' => '',
-            'resumableChunkNumber' => '',
-            'resumableTotalSize' => 0,
+            'resumableIdentifier' => 'foobar',
+            'resumableFilename' => 'testfile.foobar',
+            'resumableChunkNumber' => '1',
+            'resumableTotalSize' => 100,
+            'resumableTotalChunks' => 40,
         ], $this->resumable->getResumableParameters());
     }
 
     public function testProcessUpload()
     {
         $this->generateUploads();
-        $this->resumable->setChunkPath(vfsStream::url('tests/chunks'));
         $fileCounter = 1;
         $fileUploaded = null;
         while ($fileCounter <= 6) {
+            // Setup environment for ResumableParametersContainer
             $_POST = [
                 'resumableChunkNumber' => $fileCounter,
                 'resumableFilename' => 'test.txt',
@@ -90,7 +95,11 @@ class ResumableJsProcessorTest extends \PHPUnit_Framework_TestCase
                     'size' => 6,
                 ],
             ];
-            if ($fileUploaded = $this->resumable->process(true)) {
+            $resumable = new ResumableJsProcessor(vfsStream::url('tests/uploads'));
+            $resumable->setChunkPath(vfsStream::url('tests/chunks'));
+            $resumable->setMode(ResumableJsProcessor::MODE_UPLOAD_CHUNK);
+            if ($fileUploaded = $resumable->process(true)) {
+                $this->assertFileNotExists($resumable->getChunkPath() . DIRECTORY_SEPARATOR . '6-testtxt');
                 break;
             }
             $fileCounter++;
